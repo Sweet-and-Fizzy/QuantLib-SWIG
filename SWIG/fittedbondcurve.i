@@ -138,6 +138,15 @@ class SvenssonFitting : public FittingMethod {
                     Real minCutoffTime = 0.0,
                     Real maxCutoffTime = QL_MAX_REAL,
                     Constraint constraint = NoConstraint());
+    // Constructor with fixed parameters support
+    SvenssonFitting(const Array& weights,
+                    const ext::shared_ptr<OptimizationMethod>& optimizationMethod,
+                    const Array& l2,
+                    Real minCutoffTime,
+                    Real maxCutoffTime,
+                    const Array& fixedParameters,
+                    const Array& initialValues,
+                    Constraint constraint = NoConstraint());
 };
 
 %shared_ptr(CubicBSplinesFitting)
