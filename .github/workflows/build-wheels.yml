@@ -24,6 +24,7 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
+        # Install build tools but NOT libquantlib-dev (we'll build our own)
         sudo apt-get install -y cmake build-essential libboost-all-dev
 
     - name: Install system dependencies (macOS)
@@ -36,6 +37,12 @@ jobs:
       run: |
         choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
         # Boost will be handled by vcpkg or pre-built
+
+    - name: Remove any existing QuantLib packages
+      if: runner.os == 'Linux'
+      run: |
+        # Remove any system QuantLib packages that might conflict
+        sudo apt-get remove -y libquantlib-dev libquantlib0v5 || true
 
     - name: Clone and build QuantLib
       shell: bash
@@ -52,7 +59,7 @@ jobs:
           cmake --build . --config Release --parallel
           cmake --install . --config Release
         else
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
           make -j$(nproc)
           sudo make install
           # Update library cache on Linux
@@ -63,12 +70,15 @@ jobs:
         
         # Verify the installation includes our modifications
         if [[ "$RUNNER_OS" != "Windows" ]]; then
-          echo "Checking for SvenssonFitting constructor..."
-          grep -n "SvenssonFitting.*fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found in headers"
-          echo "Checking library installation..."
-          ls -la /usr/local/lib/libQuantLib* || echo "QuantLib library not found"
-          echo "Checking quantlib-config..."
+          echo "=== Verification of custom QuantLib installation ==="
+          echo "QuantLib version from quantlib-config:"
           /usr/local/bin/quantlib-config --version || echo "quantlib-config not found"
+          echo "Checking for SvenssonFitting constructor..."
+          grep -A 3 -B 1 "SvenssonFitting.*fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found in headers"
+          echo "Library files:"
+          ls -la /usr/local/lib/libQuantLib* || echo "QuantLib library not found"
+          echo "Include directory:"
+          ls -la /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Headers not found"
         fi
 
     - name: Set up Python
@@ -91,13 +101,22 @@ jobs:
         CIBW_ENVIRONMENT_LINUX: CXXFLAGS="-std=c++17" CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib"
         CIBW_ENVIRONMENT_MACOS: CXXFLAGS="-std=c++17" CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib"
         CIBW_ENVIRONMENT_WINDOWS: CXXFLAGS="/std:c++17"
-        # The QuantLib build step above should have installed our custom version
+        # Build custom QuantLib INSIDE each cibuildwheel container
         CIBW_BEFORE_BUILD_LINUX: |
-          echo "Using pre-installed custom QuantLib"
-          ls -la /usr/local/include/ql/termstructures/yield/
+          yum install -y cmake boost-devel git || apt-get update && apt-get install -y cmake libboost-all-dev git
+          git clone https://github.com/Sweet-and-Fizzy/QuantLib.git /tmp/QuantLib
+          cd /tmp/QuantLib && git checkout svensson-fixed-params
+          mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc) && make install
+          ldconfig
+          echo "Custom QuantLib installed, checking for constructor:"
+          grep -n "fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found"
         CIBW_BEFORE_BUILD_MACOS: |
-          echo "Using pre-installed custom QuantLib"
-          ls -la /usr/local/include/ql/termstructures/yield/
+          brew install cmake boost git || true
+          git clone https://github.com/Sweet-and-Fizzy/QuantLib.git /tmp/QuantLib
+          cd /tmp/QuantLib && git checkout svensson-fixed-params  
+          mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(sysctl -n hw.ncpu) && make install
+          echo "Custom QuantLib installed, checking for constructor:"
+          grep -n "fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found"
         # Test the wheel
         CIBW_TEST_COMMAND: python -c "import QuantLib as ql; print(f'QuantLib {ql.__version__} installed successfully')"
 
