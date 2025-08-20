@@ -139,6 +139,14 @@ class SvenssonFitting : public FittingMethod {
                     Real maxCutoffTime = QL_MAX_REAL,
                     Constraint constraint = NoConstraint());
     // Constructor with fixed parameters support
+    %rename(SvenssonFittingWithFixedParams) SvenssonFitting(const Array& weights,
+                    const ext::shared_ptr<OptimizationMethod>& optimizationMethod,
+                    const Array& l2,
+                    Real minCutoffTime,
+                    Real maxCutoffTime,
+                    const Array& fixedParameters,
+                    const Array& initialValues,
+                    Constraint constraint);
     SvenssonFitting(const Array& weights,
                     const ext::shared_ptr<OptimizationMethod>& optimizationMethod,
                     const Array& l2,
