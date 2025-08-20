@@ -130,6 +130,12 @@ jobs:
       run: |
         # Build using regular setup.py to avoid cibuildwheel container isolation issues
         python -m pip install wheel
+        
+        # Disable Py_LIMITED_API for SWIG compatibility
+        # The SWIG-generated code uses Python C API functions not available in Limited API
+        sed -i 's/py_limited_api = platform.python_implementation()/py_limited_api = False/' setup.py || \
+        sed -i '' 's/py_limited_api = platform.python_implementation()/py_limited_api = False/' setup.py
+        
         if [[ "$RUNNER_OS" != "Windows" ]]; then
           export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
           export CXXFLAGS="-std=c++17"
