@@ -146,6 +146,31 @@ jobs:
         mkdir -p wheelhouse
         cp dist/*.whl wheelhouse/
 
+    - name: Repair wheels for better Linux compatibility
+      if: runner.os == 'Linux'
+      working-directory: Python
+      run: |
+        # Install auditwheel to create manylinux wheels
+        python -m pip install auditwheel
+        
+        # Show original wheel info
+        echo "=== Original wheel ==="
+        ls -la wheelhouse/
+        
+        # Repair the wheel to bundle dependencies and create manylinux wheel
+        echo "=== Analyzing wheel dependencies ==="
+        auditwheel show wheelhouse/*.whl
+        
+        echo "=== Repairing wheel ==="
+        auditwheel repair wheelhouse/*.whl -w wheelhouse_repaired/ --plat-tag linux_x86_64
+        
+        # Replace original wheel with repaired version
+        rm wheelhouse/*.whl
+        cp wheelhouse_repaired/*.whl wheelhouse/
+        
+        echo "=== Repaired wheel ==="
+        ls -la wheelhouse/
+
     - name: Upload wheels as artifacts
       uses: actions/upload-artifact@v4
       with:
