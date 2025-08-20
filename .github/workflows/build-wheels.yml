@@ -49,12 +49,26 @@ jobs:
         mkdir build && cd build
         if [[ "$RUNNER_OS" == "Windows" ]]; then
           cmake .. -DCMAKE_BUILD_TYPE=Release -A x64
-          cmake --build . --config Release
+          cmake --build . --config Release --parallel
           cmake --install . --config Release
         else
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
           sudo make install
+          # Update library cache on Linux
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo ldconfig
+          fi
+        fi
+        
+        # Verify the installation includes our modifications
+        if [[ "$RUNNER_OS" != "Windows" ]]; then
+          echo "Checking for SvenssonFitting constructor..."
+          grep -n "SvenssonFitting.*fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found in headers"
+          echo "Checking library installation..."
+          ls -la /usr/local/lib/libQuantLib* || echo "QuantLib library not found"
+          echo "Checking quantlib-config..."
+          /usr/local/bin/quantlib-config --version || echo "quantlib-config not found"
         fi
 
     - name: Set up Python
@@ -73,15 +87,17 @@ jobs:
         CIBW_BUILD: cp38-* cp39-* cp310-* cp311-*
         # Skip 32-bit builds and musl for simplicity
         CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux*"
-        # Set C++ standard
-        CIBW_ENVIRONMENT_LINUX: CXXFLAGS="-std=c++17"
-        CIBW_ENVIRONMENT_MACOS: CXXFLAGS="-std=c++17"
+        # Set C++ standard and ensure we use our custom QuantLib
+        CIBW_ENVIRONMENT_LINUX: CXXFLAGS="-std=c++17" CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib"
+        CIBW_ENVIRONMENT_MACOS: CXXFLAGS="-std=c++17" CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib"
         CIBW_ENVIRONMENT_WINDOWS: CXXFLAGS="/std:c++17"
-        # Install QuantLib before building wheel
+        # The QuantLib build step above should have installed our custom version
         CIBW_BEFORE_BUILD_LINUX: |
-          yum install -y boost-devel || apt-get update && apt-get install -y libboost-all-dev
+          echo "Using pre-installed custom QuantLib"
+          ls -la /usr/local/include/ql/termstructures/yield/
         CIBW_BEFORE_BUILD_MACOS: |
-          brew install boost || true
+          echo "Using pre-installed custom QuantLib"
+          ls -la /usr/local/include/ql/termstructures/yield/
         # Test the wheel
         CIBW_TEST_COMMAND: python -c "import QuantLib as ql; print(f'QuantLib {ql.__version__} installed successfully')"
 
