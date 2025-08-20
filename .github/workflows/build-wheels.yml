@@ -25,12 +25,12 @@ jobs:
       run: |
         sudo apt-get update
         # Install build tools but NOT libquantlib-dev (we'll build our own)
-        sudo apt-get install -y cmake build-essential libboost-all-dev
+        sudo apt-get install -y cmake build-essential libboost-all-dev autoconf automake libtool
 
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install cmake boost
+        brew install cmake boost autoconf automake libtool
 
     - name: Install system dependencies (Windows)
       if: runner.os == 'Windows'
@@ -109,6 +109,21 @@ jobs:
           echo "Constructor check:"
           grep -n "fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor still not found!"
         fi
+
+    - name: Install SWIG
+      run: |
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          sudo apt-get install -y swig
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          brew install swig
+        fi
+
+    - name: Generate SWIG wrappers
+      run: |
+        # Configure and generate SWIG wrappers
+        ./autogen.sh
+        ./configure --disable-perl --disable-ruby --disable-ocaml --disable-r --disable-java --disable-csharp --disable-scala
+        make -C Python src/QuantLib/quantlib_wrap.cpp
 
     - name: Build wheels (Python only)
       working-directory: Python
