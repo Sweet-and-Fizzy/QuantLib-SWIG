@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-2022, macos-12]
+        os: [ubuntu-22.04, macos-12]  # Focus on Linux/macOS first, add Windows later
 
     steps:
     - uses: actions/checkout@v4
@@ -36,7 +36,12 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
-        # Boost will be handled by vcpkg or pre-built
+        # Install Boost using vcpkg
+        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat
+        C:\vcpkg\vcpkg.exe install boost:x64-windows
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
 
     - name: Remove any existing QuantLib packages
       if: runner.os == 'Linux'
@@ -55,7 +60,7 @@ jobs:
         # Build QuantLib
         mkdir build && cd build
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          cmake .. -DCMAKE_BUILD_TYPE=Release -A x64
+          cmake .. -DCMAKE_BUILD_TYPE=Release -A x64 -DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE"
           cmake --build . --config Release --parallel
           cmake --install . --config Release
         else
