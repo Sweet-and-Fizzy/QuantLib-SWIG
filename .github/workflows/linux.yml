@@ -23,6 +23,22 @@ jobs:
     container: ghcr.io/lballabio/quantlib-swig-devenv:${{ matrix.language }}
     steps:
     - uses: actions/checkout@v5
+    - name: Install custom QuantLib with fixed parameters
+      run: |
+        # Install build dependencies
+        apt-get update && apt-get install -y git cmake build-essential
+        
+        # Clone and build YOUR custom QuantLib
+        git clone https://github.com/Sweet-and-Fizzy/QuantLib.git /tmp/QuantLib
+        cd /tmp/QuantLib && git checkout svensson-fixed-params
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc) && make install && ldconfig
+        
+        # Verify our custom constructor is available
+        echo "Checking for fixed parameter constructor:"
+        grep -n "fixedParameters" /usr/local/include/ql/termstructures/yield/nonlinearfittingmethods.hpp || echo "Constructor not found!"
+        
     - name: Build
       run: |
         ./.ci/${{ matrix.language }}${{ matrix.config }}.build
