@@ -2,7 +2,7 @@ name: Update copyright list
 on:
   push:
     branches:
-      - '**'
+      - 'main'  # Only run on main branch, not your feature branch
 jobs:
   copyrights:
     runs-on: ubuntu-latest

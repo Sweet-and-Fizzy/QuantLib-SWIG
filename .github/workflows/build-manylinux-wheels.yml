@@ -1,0 +1,62 @@
+name: Build Manylinux Wheels
+
+on:
+  workflow_dispatch:  # Manual trigger for testing
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build_manylinux_wheels:
+    name: Build manylinux wheels
+    runs-on: ubuntu-20.04
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Build wheels in manylinux container
+      run: |
+        # Use manylinux2014 which has glibc 2.17 (very compatible)
+        docker run --rm -v $PWD:/io quay.io/pypa/manylinux2014_x86_64 bash -c "
+          # Install dependencies inside container
+          yum install -y cmake boost-devel git
+          
+          # Clone and build custom QuantLib
+          git clone https://github.com/Sweet-and-Fizzy/QuantLib.git /tmp/QuantLib
+          cd /tmp/QuantLib && git checkout svensson-fixed-params
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j\$(nproc) && make install
+          ldconfig
+          
+          # Build wheels for multiple Python versions
+          cd /io
+          for PYBIN in /opt/python/cp39-cp39/bin /opt/python/cp310-cp310/bin /opt/python/cp311-cp311/bin; do
+            \${PYBIN}/pip install wheel
+            
+            # Generate SWIG wrappers
+            ./autogen.sh
+            ./configure --disable-perl --disable-ruby --disable-ocaml --disable-r --disable-java --disable-csharp --disable-scala
+            make -C Python src/QuantLib/quantlib_wrap.cpp
+            
+            # Build wheel
+            cd Python
+            # Disable Py_LIMITED_API
+            sed -i 's/py_limited_api = platform.python_implementation()/py_limited_api = False/' setup.py
+            
+            \${PYBIN}/python setup.py bdist_wheel
+            cd ..
+          done
+          
+          # Repair wheels to bundle QuantLib
+          for whl in Python/dist/*.whl; do
+            auditwheel repair \$whl -w Python/wheelhouse/
+          done
+        "
+        
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: manylinux-wheels
+        path: Python/wheelhouse/*.whl

@@ -1,0 +1,29 @@
+name: Test Simple Workflow
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [ svensson-fixed-params ]
+
+jobs:
+  test:
+    name: Test workflow runs
+    runs-on: ubuntu-20.04
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Simple test
+      run: |
+        echo "Workflow is running!"
+        echo "Branch: ${{ github.ref }}"
+        echo "Repository: ${{ github.repository }}"
+        ls -la
+        
+    - name: Check custom QuantLib repo access
+      run: |
+        echo "Testing access to custom QuantLib repo..."
+        git clone https://github.com/Sweet-and-Fizzy/QuantLib.git /tmp/test-quantlib
+        cd /tmp/test-quantlib
+        git checkout svensson-fixed-params
+        echo "✅ Can access custom QuantLib repo and branch"
