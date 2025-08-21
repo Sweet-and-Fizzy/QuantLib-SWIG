@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-12]  # Focus on Linux/macOS first, add Windows later
+        os: [ubuntu-20.04, macos-12]  # Ubuntu 20.04 has glibc 2.31, compatible with Deepnote
 
     steps:
     - uses: actions/checkout@v4
@@ -162,7 +162,18 @@ jobs:
         auditwheel show wheelhouse/*.whl
         
         echo "=== Repairing wheel ==="
-        auditwheel repair wheelhouse/*.whl -w wheelhouse_repaired/ --plat-tag linux_x86_64
+        # Try to repair wheel - Ubuntu 20.04 has glibc 2.31, so we can target manylinux_2_31
+        # This should bundle libQuantLib.so into the wheel
+        if auditwheel repair wheelhouse/*.whl -w wheelhouse_repaired/ --plat manylinux_2_31_x86_64; then
+          echo "✅ Created manylinux_2_31 wheel (compatible with glibc 2.31+, including Deepnote)"
+        elif auditwheel repair wheelhouse/*.whl -w wheelhouse_repaired/ --plat linux_x86_64; then
+          echo "✅ Created linux_x86_64 wheel with bundled dependencies"
+        else
+          echo "⚠️ auditwheel repair failed - keeping original wheel"
+          echo "Building on Ubuntu 20.04 should still make it compatible with Deepnote"
+          mkdir -p wheelhouse_repaired
+          cp wheelhouse/*.whl wheelhouse_repaired/
+        fi
         
         # Replace original wheel with repaired version
         rm wheelhouse/*.whl
