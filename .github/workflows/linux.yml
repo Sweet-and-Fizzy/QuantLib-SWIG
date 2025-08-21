@@ -57,18 +57,8 @@ jobs:
         python setup.py bdist_wheel
         echo "=== Built wheels ==="
         ls -la dist/
-        echo "=== Wheel contents ==="
-        python -c "
-import zipfile
-import os
-for f in os.listdir('dist/'):
-    if f.endswith('.whl'):
-        print(f'Contents of {f}:')
-        with zipfile.ZipFile(f'dist/{f}', 'r') as z:
-            for name in z.namelist()[:10]:
-                print(f'  {name}')
-        break
-"
+        echo "=== Verifying wheel was created ==="
+        find dist/ -name "*.whl" -exec echo "Found wheel: {}" \;
         
     - name: Upload Python wheels
       if: matrix.language == 'python'
